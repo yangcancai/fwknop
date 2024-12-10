@@ -26,6 +26,7 @@
  *  USA
  */
 
+int fwknop_command(int argc, char **argv);
 #include "fwknop.h"
 #include "config_init.h"
 #include "spa_comm.h"
@@ -76,8 +77,21 @@ static int enable_fault_injections(fko_cli_options_t * const opts);
 #define CTX_DUMP_BUFSIZE            4096                /*!< Maximum size allocated to a FKO context dump */
 
 int
-main(int argc, char **argv)
+main(int argc, char **argv){
+    return fwknop_command(argc, argv);
+}
+void print_argv(int argc, char **argv) {
+    // 打印程序名称
+    printf("Program name: %s\n", argv[0]);
+
+    // 遍历并打印所有命令行参数
+    for (int i = 1; i < argc; ++i) {
+        printf("Argument %d: %s\n", i, argv[i]);
+    }
+}
+int fwknop_command(int argc, char **argv)
 {
+    optind = 1;
     fko_ctx_t           ctx  = NULL;
     fko_ctx_t           ctx2 = NULL;
     int                 res;
@@ -90,7 +104,7 @@ main(int argc, char **argv)
     char                dump_buf[CTX_DUMP_BUFSIZE];
 
     fko_cli_options_t   options;
-
+    print_argv(argc, argv);
     memset(&options, 0x0, sizeof(fko_cli_options_t));
 
     /* Initialize the log module */
@@ -1309,7 +1323,7 @@ clean_exit(fko_ctx_t ctx, fko_cli_options_t *opts,
     zero_buf_wrapper(hmac_key, *hmac_key_len);
     *key_len = 0;
     *hmac_key_len = 0;
-    exit(exit_status);
+    //exit(exit_status);
 }
 
 /***EOF***/

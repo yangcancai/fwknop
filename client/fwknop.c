@@ -81,10 +81,9 @@ main(int argc, char **argv){
     return fwknop_command(argc, argv);
 }
 void print_argv(int argc, char **argv) {
-    // 打印程序名称
+   
     printf("Program name: %s\n", argv[0]);
 
-    // 遍历并打印所有命令行参数
     for (int i = 1; i < argc; ++i) {
         printf("Argument %d: %s\n", i, argv[i]);
     }

@@ -81,10 +81,10 @@ main(int argc, char **argv){
     return fwknop_command(argc, argv);
 }
 void print_argv(int argc, char **argv) {
-   
+    int i = 0;
     printf("Program name: %s\n", argv[0]);
 
-    for (int i = 1; i < argc; ++i) {
+    for (i = 1; i < argc; ++i) {
         printf("Argument %d: %s\n", i, argv[i]);
     }
 }

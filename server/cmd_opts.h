@@ -182,9 +182,9 @@ enum {
 /* Our getopt_long options string.
 */
 #if USE_LIBNETFILTER_QUEUE
-  #define GETOPTS_OPTION_STRING "Aa:c:C:d:Dfhi:Kl:nO:p:P:Rr:StUvV"
+  #define GETOPTS_OPTION_STRING "Aa:c:C:d:Dfhi:Kl:nO:p:P:QRr:StUvV"
 #else
-  #define GETOPTS_OPTION_STRING "Aa:c:C:d:Dfhi:Kl:O:p:P:Rr:StUvV"
+  #define GETOPTS_OPTION_STRING "Aa:c:C:d:Dfhi:Kl:O:p:P:QRr:StUvV"
 #endif
 
 /* Our program command-line options...

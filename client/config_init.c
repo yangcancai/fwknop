@@ -901,7 +901,19 @@ create_fwknoprc(const char *rcfile)
         "#NAT_ACCESS          192.168.1.55,88\n"
         "#CLIENT_TIMEOUT      60\n"
         "#\n"
-        "\n"
+        "#[vpn]\n"
+        "#SPA_SERVER_PROTO            udp\n"
+        "#SPA_SERVER_PORT             62201\n"
+        "# resolve or the ip address\n"
+        "#ALLOW_IP                    resolve\n"
+        "#ACCESS                      tcp/7700\n"
+        "#SPA_SERVER                  fwknop.com\n"
+        "#KEY_BASE64                  e7USwx6Ik5LU4f3s0sBA9C5vB0y/UeQpdbDAcjT5+EY=\n"
+        "#HMAC_KEY_BASE64             pVRDi5qu6IYT34RVQn7JNXI0ETnxVldxC+kZxMcGhjK7gF7MYTRSdDDWrJHh8IfTO4NY2zNQ6sCI6DFFSr93QA==\n"
+        "#USE_HMAC                    Y\n"
+        "#SPOOF_USER                 fwknop\n"
+        "#FW_TIMEOUT                 60\n"
+        "#\n"
     );
 
     fclose(rc);

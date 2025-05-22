@@ -52,6 +52,7 @@ static int make_dir_path(const char * const path);
 static void daemonize_process(fko_srv_options_t * const opts);
 static int stop_fwknopd(fko_srv_options_t * const opts);
 static int status_fwknopd(fko_srv_options_t * const opts);
+static int qr_fwknopd(fko_srv_options_t * const opts);
 static int restart_fwknopd(fko_srv_options_t * const opts);
 static int write_pid_file(fko_srv_options_t *opts);
 static int handle_signals(fko_srv_options_t *opts);
@@ -104,6 +105,7 @@ main(int argc, char **argv)
         if(opts.status == 1)
             clean_exit(&opts, NO_FW_CLEANUP, status_fwknopd(&opts));
 
+        
         /* Restart the currently running fwknopd process?
         */
         if(opts.restart == 1)
@@ -180,6 +182,11 @@ main(int argc, char **argv)
             log_msg(LOG_ERR, "Fatal, could not find any valid access.conf stanzas");
             clean_exit(&opts, NO_FW_CLEANUP, EXIT_FAILURE);
         }
+
+        /* Display the qrcode for Fwknop Client?
+        */
+        if(opts.qr == 1)
+            clean_exit(&opts, NO_FW_CLEANUP, qr_fwknopd(&opts));
 
         /* Show config (including access.conf vars) and exit dump config was
          * wanted.
@@ -581,7 +588,47 @@ static int restart_fwknopd(fko_srv_options_t * const opts)
     fprintf(stdout, "No running fwknopd detected.\n");
     return EXIT_FAILURE;
 }
-
+#if defined(_MSC_VER) && _MSC_VER < 1900
+#define snprintf _snprintf
+#endif
+static int qr_fwknopd(fko_srv_options_t * const opts)
+{
+    char qr_code[2048];
+    int c = 0;
+    unsigned char enable_udp_server = 0;
+    if(opts->enable_udp_server ||
+        strncasecmp(opts->config[CONF_ENABLE_UDP_SERVER], "Y", 1) == 0)
+        {
+            enable_udp_server = 1;
+        }
+    unsigned short port = enable_udp_server ? opts->udpserv_port : opts->tcpserv_port;
+    const char *proto = enable_udp_server ? "udp" : "tcp";
+    acc_stanza_t *cur = opts->acc_stanzas;
+    while (cur != NULL) {
+    const char *key = cur->key_base64 ? cur->key_base64 : "";
+    const char *hmac = cur->hmac_key_base64 ? cur->hmac_key_base64 : "";
+    const char *user = cur->require_username ? cur->require_username : "";
+    const char *access = cur->open_ports ? cur->open_ports : "";
+    snprintf(qr_code, sizeof(qr_code), "SPA_SERVER_PROTO:%s SPA_SERVER_PORT:%d ALLOW_IP:resolve ACCESS:%s SPA_SERVER:%s KEY_BASE64:%s HMAC_KEY_BASE64:%s USE_HMAC:Y SPOOF_USER:%s FW_TIMEOUT:60",
+     proto, port, access, "", key, hmac, user);
+     c++;
+    // qrencode -t ANSI qr_code 
+    fprintf(stdout, "%s.\n", qr_code);
+    char cmd[2048];
+    snprintf(cmd, sizeof(cmd), "qrencode -t UTF8 -s 1 \"%s\"", qr_code);
+   // Execute the command 
+    int ret = system(cmd);
+    if (ret != 0) {
+        fprintf(stderr, "Failed to execute qrencode command.\n");
+        return EXIT_FAILURE;
+    }
+    cur = cur->next;
+   }
+   if (c == 0) {
+        fprintf(stderr, "No access stanzas found.\n");
+    }
+    return EXIT_SUCCESS;
+}
 static int status_fwknopd(fko_srv_options_t * const opts)
 {
     pid_t    old_pid;
@@ -597,7 +644,6 @@ static int status_fwknopd(fko_srv_options_t * const opts)
     fprintf(stdout, "No running fwknopd detected.\n");
     return EXIT_FAILURE;
 }
-
 static int handle_signals(fko_srv_options_t *opts)
 {
     int      last_sig = 0, rv = 1;

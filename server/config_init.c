@@ -1021,13 +1021,13 @@ validate_options(fko_srv_options_t *opts)
      *
      * These are also mutually exclusive (for now).
     */
-    if((opts->dump_config + opts->kill + opts->restart + opts->status) == 1)
+    if((opts->dump_config + opts->kill + opts->restart + opts->status + opts->qr) == 1)
         return;
 
-    if((opts->dump_config + opts->kill + opts->restart + opts->status) > 1)
+    if((opts->dump_config + opts->kill + opts->restart + opts->status + opts->qr) > 1)
     {
         log_msg(LOG_ERR,
-            "The -D, -K, -R, and -S options are mutually exclusive.  Pick only one."
+            "The -Q, -D, -K, -R, and -S options are mutually exclusive.  Pick only one."
         );
         clean_exit(opts, NO_FW_CLEANUP, EXIT_FAILURE);
     }
@@ -1432,6 +1432,9 @@ config_init(fko_srv_options_t *opts, int argc, char **argv)
             case 'S':
                 opts->status = 1;
                 break;
+            case 'Q':
+                opts->qr = 1;
+                break;    
             case SUDO_EXE_PATH:
                 if (is_valid_exe(optarg))
                     set_config_entry(opts, CONF_SUDO_EXE, optarg);
@@ -1531,6 +1534,7 @@ usage(void)
       "                         - Rotate the digest cache file by renaming it to\n"
       "                           '<name>-old', and starting a new one.\n"
       " -S, --status            - Display the status of any running fwknopd process.\n"
+      " -Q, --qr                - Display the qrencode of fwknopd access.conf stanzas for Fwknop Client [Download from fwknop.com].\n"
       " -t, --test              - Test mode, process SPA packets but do not make any\n"
       "                           firewall modifications.\n"
       " -U, --udp-server        - Set UDP server mode.\n"

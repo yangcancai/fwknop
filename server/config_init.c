@@ -1459,6 +1459,9 @@ config_init(fko_srv_options_t *opts, int argc, char **argv)
             case SYSLOG_ENABLE:
                 opts->syslog_enable = 1;
                 break;
+            case FW_CONSOLE:
+                opts->fw_console = 1;
+                break;    
             default:
                 usage();
                 clean_exit(opts, NO_FW_CLEANUP, EXIT_FAILURE);
@@ -1559,6 +1562,7 @@ usage(void)
       "                           an interface (such as in a forwarding situation).\n"
       "     --fw-list           - List all firewall rules that fwknop has created\n"
       "                           and then exit.\n"
+      "     --fw-console        - Into firewall console mode\n"
       "     --fw-list-all       - List all firewall rules in the complete policy,\n"
       "                           including those that have nothing to do with\n"
       "                           fwknop.\n"

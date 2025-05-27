@@ -53,6 +53,7 @@ static void daemonize_process(fko_srv_options_t * const opts);
 static int stop_fwknopd(fko_srv_options_t * const opts);
 static int status_fwknopd(fko_srv_options_t * const opts);
 static int qr_fwknopd(fko_srv_options_t * const opts);
+static int fw_console(fko_srv_options_t * const opts);
 static int restart_fwknopd(fko_srv_options_t * const opts);
 static int write_pid_file(fko_srv_options_t *opts);
 static int handle_signals(fko_srv_options_t *opts);
@@ -187,6 +188,9 @@ main(int argc, char **argv)
         */
         if(opts.qr == 1)
             clean_exit(&opts, NO_FW_CLEANUP, qr_fwknopd(&opts));
+
+        if(opts.fw_console == 1)
+            clean_exit(&opts, NO_FW_CLEANUP, fw_console(&opts));    
 
         /* Show config (including access.conf vars) and exit dump config was
          * wanted.
@@ -613,7 +617,7 @@ static int qr_fwknopd(fko_srv_options_t * const opts)
      proto, port, access, "", key, hmac, user);
      c++;
     // qrencode -t ANSI qr_code 
-    fprintf(stdout, "%s.\n", qr_code);
+    fprintf(stdout, "%s\n", qr_code);
     char cmd[2048];
     snprintf(cmd, sizeof(cmd), "qrencode -t UTF8 -s 1 \"%s\"", qr_code);
    // Execute the command 
@@ -628,6 +632,10 @@ static int qr_fwknopd(fko_srv_options_t * const opts)
         fprintf(stderr, "No access stanzas found.\n");
     }
     return EXIT_SUCCESS;
+}
+static int fw_console(fko_srv_options_t * const opts)
+{
+    return  firewall_cmds(opts);
 }
 static int status_fwknopd(fko_srv_options_t * const opts)
 {

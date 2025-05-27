@@ -70,6 +70,7 @@
 #endif
 
 int validate_ipt_chain_conf(const char * const chain_str);
+int firewall_cmds(fko_srv_options_t * const opts);
 
 #endif /* FW_UTIL_IPTABLES_H */
 

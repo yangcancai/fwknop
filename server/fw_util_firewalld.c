@@ -1945,6 +1945,11 @@ validate_firewd_chain_conf(const char * const chain_str)
     return rv;
 }
 
+int firewall_cmds(fko_srv_options_t * const opts){
+    printf("\nFirewall Port Manager Not Supported\n");
+    return 0;
+}
+
 #endif /* FIREWALL_FIREWALLD */
 
 /***EOF***/

@@ -1930,6 +1930,352 @@ validate_ipt_chain_conf(const char * const chain_str)
     return rv;
 }
 
+#define MAX_CMD_LEN 256
+#define MAX_PORTS 20
+#define TEMP_RULES_FILE "/tmp/iptables_temp.rules"
+#define BACKUP_RULES_FILE "/tmp/iptables_backup.rules"
+
+void execute_cmd(const char *cmd) {
+    printf("Executing: %s\n", cmd);
+    int status = system(cmd);
+    if (status != 0) {
+        printf("Command failed with status %d\n", status);
+    }
+}
+
+void list_rules() {
+    printf("\nCurrent INPUT Chain Rules:\n");
+    printf("=========================\n");
+    execute_cmd("iptables -L INPUT -n --line-numbers");
+}
+
+void timeout_handler(int sig) {
+    printf("\nOperation timed out! No changes were made.\n");
+    exit(1);
+}
+
+int validate_rules_file(const char *filename) {
+    printf("Validating rules file...\n");
+    char cmd[MAX_CMD_LEN];
+    snprintf(cmd, MAX_CMD_LEN, "iptables-restore -n < %s", filename);
+    return system(cmd) == 0;
+}
+
+int initialize_firewall(fko_srv_options_t * const opts) {
+    char ports[MAX_PORTS][16];
+    char protocols[MAX_PORTS][4];
+    int port_count = 0;
+    char choice;
+    FILE *temp_rules = NULL;
+    unsigned int enable_udp_server = 0; 
+    printf("\nFirewall Initialization\n");
+    printf("======================\n");
+    printf("WARNING: This will reset ALL firewall rules!\n");
+    printf("Recommended: Have physical console access or\n");
+    printf("a secondary SSH session open as backup.\n");
+    printf("Continue? (y/n): ");
+    
+    scanf(" %c", &choice);
+    if (choice != 'y' && choice != 'Y') {
+        printf("Initialization canceled.\n");
+        return 0;
+    }
+    if(opts->enable_udp_server ||
+        strncasecmp(opts->config[CONF_ENABLE_UDP_SERVER], "Y", 1) == 0)
+        {
+            enable_udp_server = 1;
+            strcpy(protocols[0], "udp");
+        }else{
+            strcpy(protocols[0], "tcp");
+        }
+    unsigned short port = enable_udp_server ? opts->udpserv_port : opts->tcpserv_port;
+    port_count = 1;
+    snprintf(ports[0], 16, "%u", port);
+    // Configure ports to open
+    printf("\nConfigure additional ports to open (y/n)? ");
+    scanf(" %c", &choice);
+    while(getchar() != '\n'); 
+    if (choice == 'y' || choice == 'Y') {
+        printf("\The %s port %d listened to by fwknop will be added to the firewall rules.\n",protocols[0], port);
+        printf("\nEnter ports to open (protocol port, e.g., 'tcp 22' or 'udp 53')\n");
+        printf("Enter 'done' when finished (max %d ports):\n", MAX_PORTS);
+        
+        while (port_count < MAX_PORTS) {
+            char input[32];
+            printf("Port %d (format 'proto port' or 'done'): ", port_count + 1);
+            
+            // Read entire line
+            if (fgets(input, sizeof(input), stdin) == NULL) {
+                break;  // Handle EOF or error
+            }
+            
+            // Remove newline
+            input[strcspn(input, "\n")] = '\0';
+            
+            // Check for done command
+            if (strcmp(input, "done") == 0) {
+                break;
+            }
+            
+            // Parse protocol and port
+            if (sscanf(input, "%3s %15s", protocols[port_count], ports[port_count]) != 2) {
+                printf("Invalid format. Use 'tcp 22' or 'udp 53' format.\n");
+                continue;
+            }
+            
+            // Validate protocol
+            if (strcmp(protocols[port_count], "tcp") != 0 && 
+                strcmp(protocols[port_count], "udp") != 0) {
+                printf("Invalid protocol. Only 'tcp' or 'udp' allowed.\n");
+                continue;
+            }
+            
+            // Validate port number
+            char* endptr;
+            long port_num = strtol(ports[port_count], &endptr, 10);
+            if (*endptr != '\0' || port_num < 1 || port_num > 65535) {
+                printf("Invalid port number. Must be 1-65535.\n");
+                continue;
+            }
+            
+            port_count++;
+        }
+    }
+    
+    // Create temporary rules file
+    temp_rules = fopen(TEMP_RULES_FILE, "w");
+    if (!temp_rules) {
+        perror("Failed to create temporary rules file");
+        return -1;
+    }
+    
+    // Write the new rules
+    fprintf(temp_rules, "*filter\n");
+    fprintf(temp_rules, ":INPUT DROP [0:0]\n");
+    fprintf(temp_rules, ":FORWARD DROP [0:0]\n");
+    fprintf(temp_rules, ":OUTPUT ACCEPT [0:0]\n");
+    
+    // Critical rules to maintain connectivity
+    fprintf(temp_rules, "-A INPUT -i lo -j ACCEPT\n");
+    fprintf(temp_rules, "-A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT\n");
+    fprintf(temp_rules, "-A INPUT -p icmp -j ACCEPT\n");
+   int i; 
+    // Add custom ports
+    for (i = 0; i < port_count; i++) {
+        fprintf(temp_rules, "-A INPUT -p %s --dport %s -j ACCEPT\n", 
+               protocols[i], ports[i]);
+    }
+    
+    fprintf(temp_rules, "COMMIT\n");
+    fclose(temp_rules);
+    
+    // Validate the rules before applying
+    if (!validate_rules_file(TEMP_RULES_FILE)) {
+        printf("Rule validation failed! Aborting.\n");
+        remove(TEMP_RULES_FILE);
+        return -1;
+    }
+    
+    // Backup current rules
+    execute_cmd("iptables-save > " BACKUP_RULES_FILE);
+    
+    // Set timeout in case the restore hangs
+    alarm(60); // 1 minute timeout
+    signal(SIGALRM, timeout_handler);
+    
+    // Apply new rules
+    char cmd[MAX_CMD_LEN];
+    snprintf(cmd, MAX_CMD_LEN, "iptables-restore < %s", TEMP_RULES_FILE);
+    int restore_status = system(cmd);
+    alarm(0); // Cancel timeout
+    
+    if (restore_status != 0) {
+        printf("Error applying new rules! (Status: %d)\n", restore_status);
+        printf("No changes were made to the firewall rules.\n");
+        remove(TEMP_RULES_FILE);
+        return -1;
+    }
+    
+    // Save to permanent configuration
+    #if defined(__DEBIAN__) || defined(__UBUNTU__)
+        execute_cmd("iptables-save > /etc/iptables/rules.v4");
+    #else
+        execute_cmd("iptables-save > /etc/sysconfig/iptables");
+    #endif
+    
+    printf("\nFirewall initialized successfully.\n");
+    list_rules();
+    remove(TEMP_RULES_FILE);
+    return 0;
+}
+
+void save_persistent_rules() {
+    printf("Saving rules to persistent configuration...\n");
+#if defined(__DEBIAN__) || defined(__UBUNTU__)
+    execute_cmd("iptables-save > /etc/iptables/rules.v4");
+#else
+    execute_cmd("iptables-save > /etc/sysconfig/iptables");
+#endif
+}
+void add_port_rule() {
+    char protocol[4];
+    char port[16];
+    char cmd[MAX_CMD_LEN];
+    char check_cmd[MAX_CMD_LEN];
+    FILE *fp;
+    
+    printf("\nAdd Port Rule\n");
+    printf("=============\n");
+    
+    // Get protocol input with validation
+    while (1) {
+        printf("Protocol (tcp/udp): ");
+        if (scanf("%3s", protocol) != 1) {
+            printf("Invalid input.\n");
+            while (getchar() != '\n'); // Clear input buffer
+            continue;
+        }
+        
+        if (strcmp(protocol, "tcp") == 0 || strcmp(protocol, "udp") == 0) {
+            break;
+        }
+        printf("Error: Only 'tcp' or 'udp' are allowed.\n");
+    }
+    
+    // Get port input with validation
+    while (1) {
+        printf("Port number: ");
+        if (scanf("%15s", port) != 1) {
+            printf("Invalid input.\n");
+            while (getchar() != '\n'); // Clear input buffer
+            continue;
+        }
+        
+        char *endptr;
+        long port_num = strtol(port, &endptr, 10);
+        if (*endptr != '\0' || port_num < 1 || port_num > 65535) {
+            printf("Error: Port must be 1-65535.\n");
+            continue;
+        }
+        break;
+    }
+    
+    // Check if the rule already exists
+    snprintf(check_cmd, MAX_CMD_LEN, 
+             "iptables -C INPUT -p %s --dport %s -j ACCEPT 2>/dev/null", 
+             protocol, port);
+    
+    if (system(check_cmd) == 0) {
+        printf("\nWarning: This rule already exists!\n");
+        printf("Existing rule: iptables -A INPUT -p %s --dport %s -j ACCEPT\n", 
+               protocol, port);
+        
+        printf("Add anyway? (y/n): ");
+        char confirm_dup;
+        scanf(" %c", &confirm_dup);
+        while (getchar() != '\n'); // Clear input buffer
+        
+        if (confirm_dup != 'y' && confirm_dup != 'Y') {
+            printf("Operation canceled.\n");
+            return;
+        }
+    }
+    
+    // Generate and confirm the rule
+    snprintf(cmd, MAX_CMD_LEN, "iptables -A INPUT -p %s --dport %s -j ACCEPT", 
+             protocol, port);
+    
+    printf("\nRule to add: %s\n", cmd);
+    printf("Confirm? (y/n): ");
+    
+    char confirm;
+    scanf(" %c", &confirm);
+    while (getchar() != '\n'); // Clear input buffer
+    
+    if (confirm == 'y' || confirm == 'Y') {
+        execute_cmd(cmd);
+        save_persistent_rules();
+        printf("Rule added successfully.\n");
+    } else {
+        printf("Operation canceled.\n");
+    }
+}
+
+void delete_rule() {
+    int rule_num;
+    char cmd[MAX_CMD_LEN];
+    
+    list_rules();
+    
+    printf("\nDelete Rule\n");
+    printf("===========\n");
+    printf("Enter rule number to delete: ");
+    scanf("%d", &rule_num);
+    
+    snprintf(cmd, MAX_CMD_LEN, "iptables -D INPUT %d", rule_num);
+    
+    printf("\nCommand to execute: %s\n", cmd);
+    printf("Confirm? (y/n): ");
+    
+    char confirm;
+    scanf(" %c", &confirm);
+    
+    if (confirm == 'y' || confirm == 'Y') {
+        execute_cmd(cmd);
+        save_persistent_rules();
+        printf("Rule deleted successfully.\n");
+    } else {
+        printf("Operation canceled.\n");
+    }
+}
+
+void show_menu() {
+    printf("\nFirewall Port Manager\n");
+    printf("====================\n");
+    printf("1. Initialize firewall (WARNING: Clears existing rules)\n");
+    printf("2. List current rules\n");
+    printf("3. Add port rule\n");
+    printf("4. Delete rule\n");
+    printf("0. Exit\n");
+    printf("====================\n");
+    printf("Select option: ");
+}
+
+int firewall_cmds(fko_srv_options_t * const opts) {
+    if (getuid() != 0) {
+        printf("Error: Must be run as root\n");
+        return 1;
+    }
+
+    int choice;
+    do {
+        show_menu();
+        scanf("%d", &choice);
+        
+        switch(choice) {
+            case 1:
+                initialize_firewall(opts);
+                break;
+            case 2:
+                list_rules();
+                break;
+            case 3:
+                add_port_rule();
+                break;
+            case 4:
+                delete_rule();
+                break;
+            case 0:
+                printf("Exiting...\n");
+                break;
+            default:
+                printf("Invalid option\n");
+        }
+    } while (choice != 0);
+    
+    return 0;
+}
+
 #endif /* FIREWALL_IPTABLES */
 
 /***EOF***/

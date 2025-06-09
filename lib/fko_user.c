@@ -33,7 +33,8 @@
 #ifdef __MINGW32__
   #include "../win32/getlogin.h"
 #elif WIN32
-  #include <getlogin.h>
+ // #include <getlogin.h>
+ #define getlogin() getenv("USERNAME")
 #endif
 
 /* Get or Set the username for the fko context spa data.

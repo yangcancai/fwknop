@@ -29,8 +29,11 @@
 */
 #ifndef CONFIG_INIT_H
 #define CONFIG_INIT_H
-
-#include <getopt.h>
+#ifdef WIN32
+  #include "getopt.h"
+#else 
+  #include <getopt.h>
+#endif
 #include <sys/stat.h>
 
 /* Function Prototypes

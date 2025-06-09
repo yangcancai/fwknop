@@ -29,8 +29,12 @@
 */
 #ifndef CONFIG_INIT_H
 #define CONFIG_INIT_H
+#ifdef WIN32
+  #include "getopt.h"
+#else 
+  #include <getopt.h>
+#endif
 
-#include <getopt.h>
 #include <sys/stat.h>
 
 /* String compare macro.

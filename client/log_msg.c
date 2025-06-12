@@ -33,6 +33,21 @@
 
 #define LOG_STREAM_STDERR   stderr                  /*!< Error and warning messages are redirected to stderr */
 #define LOG_STREAM_STDOUT   stdout                  /*!< Normal, info and debug messages are redirected to stdout */
+#ifdef __ANDROID__
+#include <android/log.h>
+#define LOG_TAG "FWKNOP"
+#define LOG_VPRINTF(level, fmt, args) \
+    __android_log_vprint(             \
+        (level) <= LOG_VERBOSITY_WARNING ? ANDROID_LOG_ERROR : ANDROID_LOG_DEBUG, \
+        LOG_TAG, fmt, args)
+#else
+#define LOG_VPRINTF(level, fmt, args)         \
+    do {                                      \
+        FILE* out = (level) <= LOG_VERBOSITY_WARNING ? LOG_STREAM_STDERR : LOG_STREAM_STDOUT; \
+        vfprintf(out, fmt, args);             \
+        fprintf(out, "\n");                   \
+    } while (0)
+#endif
 
 typedef struct
 {
@@ -92,23 +107,7 @@ log_msg(int level, char* msg, ...)
     if (level <= log_ctx.verbosity)
     {
         va_start(ap, msg);
-
-        switch (level)
-        {
-            case LOG_VERBOSITY_ERROR:
-            case LOG_VERBOSITY_WARNING:
-                vfprintf(LOG_STREAM_STDERR, msg, ap);
-                fprintf(LOG_STREAM_STDERR, "\n");
-                break;
-            case LOG_VERBOSITY_NORMAL:
-            case LOG_VERBOSITY_INFO:
-            case LOG_VERBOSITY_DEBUG:
-            default :
-                vfprintf(LOG_STREAM_STDOUT, msg, ap);
-                fprintf(LOG_STREAM_STDOUT, "\n");
-                break;
-        }
-
+        LOG_VPRINTF(level, msg, ap); 
         va_end(ap);
     }
     else;

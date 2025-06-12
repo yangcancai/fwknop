@@ -35,8 +35,6 @@ int fwknop_command(int argc, char **argv);
 
 #include <sys/stat.h>
 #include <fcntl.h>
-
-
 /* prototypes
 */
 static int get_keys(fko_ctx_t ctx, fko_cli_options_t *options,
@@ -82,10 +80,10 @@ main(int argc, char **argv){
 }
 void print_argv(int argc, char **argv) {
     int i = 0;
-    printf("Program name: %s\n", argv[0]);
+    log_msg(LOG_VERBOSITY_NORMAL,"Program name: %s\n", argv[0]);
 
     for (i = 1; i < argc; ++i) {
-        printf("Argument %d: %s\n", i, argv[i]);
+        log_msg(LOG_VERBOSITY_NORMAL,"Argument %d: %s\n", i, argv[i]);
     }
 }
 int fwknop_command(int argc, char **argv)
@@ -865,7 +863,12 @@ prev_exec(fko_cli_options_t *options, int argc, char **argv)
 {
     char       args_save_file[MAX_PATH_LEN] = {0};
     int        res = 1;
-
+    if (!options->run_last_command &&
+        !options->show_last_command &&
+        options->no_save_args)
+    {
+        return res;
+    }
     if(options->args_save_file[0] != 0x0)
     {
         strlcpy(args_save_file, options->args_save_file, sizeof(args_save_file));

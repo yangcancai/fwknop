@@ -158,9 +158,16 @@ getpasswd(const char *prompt, int fd)
     /* Otherwise we are going to open a new stream */
     else
     {
+        #if defined(__ANDROID__)
+        char tty_path[] = "/dev/tty"; // Android does not support ctermid()
+        if ((fp = fopen(tty_path, "r+")) == NULL) {
+            return NULL;
+        }
+        #else
         if((fp = fopen(ctermid(NULL), "r+")) == NULL)
             return(NULL);
 
+        #endif
         setbuf(fp, NULL);
 
         /* Setup blocks for SIGINT and SIGTSTP and save the original signal
